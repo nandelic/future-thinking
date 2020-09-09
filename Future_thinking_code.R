@@ -184,8 +184,8 @@ df3 <- df3 %>%
 df <- merge(df, df3)
 df <- merge(df, df2)
 
-df <- df %>%
-  dplyr::filter(criteria != "FAIL") # Removing those who fail J&B criteria
+#df <- df %>%
+#  dplyr::filter(criteria != "FAIL") # Removing those who fail J&B criteria
 # Transforming AUC to reduce skewness
 df$AUC <- sqrt(df$probmodel.AUC)
 
@@ -196,36 +196,62 @@ my_data <- df %>%
   dplyr::select(AUC, FSC, mhi, financialstress, age, IVA_missed, IVA_months)
 res2 <- rcorr(as.matrix(my_data))
 res2
-# CIs for the correlations
+#### CIs for the correlations
+
+# sample of 243, ordered as mentioned in-text
+CIr(r=-0.11, n = 243, level = .95) # FSC and missed
+CIr(r=-0.00, n = 243, level = .95) # PFS and missed
+CIr(r=-0.15, n = 243, level = .95) # FSC and PFS
+
+# Filtering out those who did not have missed payments
+df2 <- df %>%
+  dplyr::filter(missed_factor == "missed")
+
+# Correlations
+my_data <- df2 %>%
+  dplyr::select(AUC, FSC, mhi, financialstress, age, IVA_missed, IVA_months)
+res2 <- rcorr(as.matrix(my_data))
+res2
+# CIs for sample of 89, ordered as mentioned in-text
+CIr(r=-0.32, n = 89, level = .95) # FSC and missed
+CIr(r=-0.12, n = 89, level = .95) # PFS and missed
+
+# CIs for supplementary material
 CIr(r=-0.24, n = 186, level = .95) # AUC and PFS
 CIr(r=0.11, n = 186, level = .95) # AUC and FSC
 CIr(r=0.01, n = 186, level = .95) # AUC and missed
-CIr(r=-0.15, n = 186, level = .95) # FSC and missed
-CIr(r=-0.05, n = 186, level = .95) # PFS and missed
 CIr(r=0.04, n = 186, level = .95) # AUC and months in IVA
 
-# Regression
+
+# Regression on full sample
 model1 <- lm(IVA_missed ~ FSC + mhi + financialstress + IVA_months, data = df) # Regression with full sample
 summary(model1)
 confint(model1)
 
-df2 <- df %>%
-  dplyr::filter(missed_factor == "missed")
-
+# Regression on only those with missed payments
 model2 <- lm(IVA_missed ~ FSC + mhi + financialstress + IVA_months, data = df2) # Regression with only those w/ missed payments
 summary(model2)
 confint(model2)
 
-# Checking Cook's distance for Model 2
+# Checking Outliers for Model 2
 
-cutoff <- 4/((nrow(df2)-length(model2$coefficients)-2)) 
-plot(model2, which=4, cook.levels=cutoff) # 3 influential outliers identified, participant 12, 23 and 56
+influencePlot(model2, id.method="noteworthy", main="Influence Plot", sub="Circle size is proportial to Cook's Distance")
+# 5 influential outliers identified, R_12u0tQNLBkzJZdB & R_1PZSzFC73W9BVGG & R_2ttnmu9EVmwNBNY & R_1LWBkjXZ4BZLMid & R_UfQHzkXmWMkmArT 
+
+#       StudRes        Hat       CookD
+#5   4.1671474 0.07479009 0.234967605 over cut-off of 0.049
+#17 -0.3909503 0.15703627 0.005752629 not over cut-off but has high Hat values
+#20  3.2537649 0.06294216 0.127656051 over cut-off of 0.049
+#39  3.2007074 0.18908772 0.430395123 over cut-off of 0.049
+#83  2.9905526 0.13589639 0.257000341 over cut-off of 0.049
+
+
+
 
 # Removing the influential observations and re-running model
 df3 <- df2 %>%
-  dplyr::filter(ResponseId != 'R_2ttnmu9EVmwNBNY', ResponseId != "R_UfQHzkXmWMkmArT", ResponseId != "R_1PZSzFC73W9BVGG")
+  dplyr::filter(!ResponseId %in% c("R_12u0tQNLBkzJZdB", "R_2ttnmu9EVmwNBNY", "R_UfQHzkXmWMkmArT", "R_1LWBkjXZ4BZLMid", "R_1PZSzFC73W9BVGG"))
 model3 <- lm(IVA_missed ~ FSC + mhi + financialstress + IVA_months, data = df3) # Regression with only those w/ missed payments
 summary(model3)
 confint(model3)
-
 
