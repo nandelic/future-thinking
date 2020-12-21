@@ -1,6 +1,6 @@
 ###################################################################################################
 #                       Future self-continuity predicts financial decisions                       #
-#                           of people with problem debts (May, 2020)                              #
+#                         of people with problem debts (December, 2020)                           #
 ###################################################################################################
 
 # The following script outlines all analysis steps required to replicate the findings in our paper
@@ -20,6 +20,7 @@ library(ggplot2)
 library(cowplot)
 library(ggpubr)
 # statistics
+library(rcompanion)
 library(psych)
 library(ppcor)
 library(e1071)
@@ -29,7 +30,7 @@ library(psychometric)
 options(scipen=999)
 # functions
 
-
+setwd("H:/Papers/Future Thinking/Data")
 
 #####################################################################################################
 #                                          Study 1                                                  #
@@ -112,43 +113,18 @@ t.test(FSC ~ condition, data=df, # two-sided t-test
        conf.level=0.95)
 
 # Regressions with CIs
-model1 <- lm(AUC ~ FSC + condition, data=df) # M1 (FSC) and condition
+model1 <- lm(AUC ~ FSC + condition, data=df) # FSC and condition
 summary(model1)
 confint(model1)
 
-model2 <- lm(AUC ~ meanstress + condition, data=df) # M2 (stress) and condition
+model2 <- lm(AUC ~ meanstress + condition, data=df) # stress and condition
 summary(model2)
 confint(model2)
 
-model3 <- lm(AUC ~ condition + FSC + meanstress, data=df) # condition and both mediators
+model3 <- lm(AUC ~ condition + FSC + meanstress, data=df) # condition and both covariates
 summary(model3)
 confint(model3)
 
-# Mediation analysis
-multipleMediation <- '
-    AUC ~ b1 * FSC + b2 * meanstress + c * condition
-    # mediator
-    FSC ~ a1 * condition
-    meanstress ~ a2 * condition
-    # indirect effects
-    indirect1 := a1 * b1
-    indirect2 := a2 * b2
-    # total effect
-    total    := c + (a1 * b1) + (a2 * b2)
-    FSC ~~ meanstress
-'
-fit <- sem(model = multipleMediation, data = df)
-summary(fit) 
-
-### Bootstrapping for mediation effect
-fit <- sem(
-  model = multipleMediation,
-  data  = df,
-  se = "bootstrap",
-  bootstrap = 1000 # 1000 is the default
-)
-summary(fit, fit.measures=TRUE, standardize=TRUE, rsquare=TRUE, 
-        estimates = TRUE, ci = TRUE)
 
 
 #####################################################################################################
@@ -185,23 +161,43 @@ df <- merge(df, df3)
 df <- merge(df, df2)
 
 #df <- df %>%
-#  dplyr::filter(criteria != "FAIL") # Removing those who fail J&B criteria
+#  dplyr::filter(criteria != "FAIL") # Removing those who fail J&B criteria - only done for supplementary mat, leaves 186 ppts
 # Transforming AUC to reduce skewness
 df$AUC <- sqrt(df$probmodel.AUC)
 
 ############ Statistics
 
-# Correlations
+# means
+groupwiseMean(FSC ~ 1, data   = df, conf   = 0.95, digits = 3)
+groupwiseMean(financialstress ~ 1, data   = df, conf   = 0.95, digits = 3)
+groupwiseMean(mhi ~ 1, data   = df, conf   = 0.95, digits = 3)
+groupwiseMean(IVA_missed ~ 1, data   = df, conf   = 0.95, digits = 3)
+groupwiseMean(IVA_months ~ 1, data   = df, conf   = 0.95, digits = 3)
+
+# variance tests
+bartlett.test(FSC ~ missed_factor, data=df)
+bartlett.test(financialstress ~ missed_factor, data=df)
+bartlett.test(mhi ~ missed_factor, data=df) # none of them have significantly different variance
+
+t.test(FSC ~ missed_factor, data=df, # two-sided t-test
+       var.equal=TRUE,
+       conf.level=0.95)
+t.test(financialstress ~ missed_factor, data=df, # two-sided t-test
+       var.equal=TRUE,
+       conf.level=0.95)
+t.test(mhi ~ missed_factor, data=df, # two-sided t-test
+       var.equal=TRUE,
+       conf.level=0.95)
+
+
+# Spearman's correlations
 my_data <- df %>%
   dplyr::select(AUC, FSC, mhi, financialstress, age, IVA_missed, IVA_months)
-res2 <- rcorr(as.matrix(my_data))
-res2
+res2 <- corr.test(as.matrix(my_data), method="spearman", ci=TRUE)
+print(res2, short=FALSE) # printing with normal CIs
+
 #### CIs for the correlations
 
-# sample of 243, ordered as mentioned in-text
-CIr(r=-0.11, n = 243, level = .95) # FSC and missed
-CIr(r=-0.00, n = 243, level = .95) # PFS and missed
-CIr(r=-0.15, n = 243, level = .95) # FSC and PFS
 
 # Filtering out those who did not have missed payments
 df2 <- df %>%
@@ -210,26 +206,21 @@ df2 <- df %>%
 # Correlations
 my_data <- df2 %>%
   dplyr::select(AUC, FSC, mhi, financialstress, age, IVA_missed, IVA_months)
-res2 <- rcorr(as.matrix(my_data))
+res2 <- rcorr(as.matrix(my_data), type="spearman")
 res2
-# CIs for sample of 89, ordered as mentioned in-text
-CIr(r=-0.32, n = 89, level = .95) # FSC and missed
-CIr(r=-0.12, n = 89, level = .95) # PFS and missed
+res2 <- corr.test(as.matrix(my_data), method="spearman", ci=TRUE) # allows for CIs as well
+print(res2, short=FALSE) # printing with normal CIs
 
-# CIs for supplementary material
-CIr(r=-0.24, n = 186, level = .95) # AUC and PFS
-CIr(r=0.11, n = 186, level = .95) # AUC and FSC
-CIr(r=0.01, n = 186, level = .95) # AUC and missed
-CIr(r=0.04, n = 186, level = .95) # AUC and months in IVA
-
+res2 <- rcorr(as.matrix(my_data), type="spearman")
+res2
 
 # Regression on full sample
-model1 <- lm(IVA_missed ~ FSC + mhi + financialstress + IVA_months, data = df) # Regression with full sample
+model1 <- lm(IVA_missed ~ FSC + mhi + financialstress + IVA_months + age, data = df) # Regression with full sample
 summary(model1)
 confint(model1)
 
 # Regression on only those with missed payments
-model2 <- lm(IVA_missed ~ FSC + mhi + financialstress + IVA_months, data = df2) # Regression with only those w/ missed payments
+model2 <- lm(IVA_missed ~ FSC + mhi + financialstress + IVA_months + age, data = df2) # Regression with only those w/ missed payments
 summary(model2)
 confint(model2)
 
@@ -239,19 +230,19 @@ influencePlot(model2, id.method="noteworthy", main="Influence Plot", sub="Circle
 # 5 influential outliers identified, R_12u0tQNLBkzJZdB & R_1PZSzFC73W9BVGG & R_2ttnmu9EVmwNBNY & R_1LWBkjXZ4BZLMid & R_UfQHzkXmWMkmArT 
 
 #       StudRes        Hat       CookD
-#5   4.1671474 0.07479009 0.234967605 over cut-off of 0.049
-#17 -0.3909503 0.15703627 0.005752629 not over cut-off but has high Hat values
-#20  3.2537649 0.06294216 0.127656051 over cut-off of 0.049
-#39  3.2007074 0.18908772 0.430395123 over cut-off of 0.049
-#83  2.9905526 0.13589639 0.257000341 over cut-off of 0.049
+#3  -0.2117072 0.20431572 0.001940475 # R_10vZBkPAWUED8CL
+#5   4.1574667 0.07588625 0.197760921 # R_12u0tQNLBkzJZdB
+#20  3.2367252 0.06296323 0.105302334 # R_1PZSzFC73W9BVGG
+#39  3.1801454 0.20667915 0.395681855 # R_2ttnmu9EVmwNBNY
+#83  2.9634324 0.14672162 0.230102242 # R_UfQHzkXmWMkmArT
 
 
 
 
 # Removing the influential observations and re-running model
 df3 <- df2 %>%
-  dplyr::filter(!ResponseId %in% c("R_12u0tQNLBkzJZdB", "R_2ttnmu9EVmwNBNY", "R_UfQHzkXmWMkmArT", "R_1LWBkjXZ4BZLMid", "R_1PZSzFC73W9BVGG"))
-model3 <- lm(IVA_missed ~ FSC + mhi + financialstress + IVA_months, data = df3) # Regression with only those w/ missed payments
+  dplyr::filter(!ResponseId %in% c("R_12u0tQNLBkzJZdB", "R_2ttnmu9EVmwNBNY", "R_UfQHzkXmWMkmArT", "R_10vZBkPAWUED8CL", "R_1PZSzFC73W9BVGG"))
+model3 <- lm(IVA_missed ~ FSC + mhi + financialstress + IVA_months + age, data = df3) # Regression with only those w/ missed payments
 summary(model3)
 confint(model3)
 
