@@ -227,7 +227,7 @@ confint(model2)
 # Checking Outliers for Model 2
 
 influencePlot(model2, id.method="noteworthy", main="Influence Plot", sub="Circle size is proportial to Cook's Distance")
-# 5 influential outliers identified, R_12u0tQNLBkzJZdB & R_1PZSzFC73W9BVGG & R_2ttnmu9EVmwNBNY & R_1LWBkjXZ4BZLMid & R_UfQHzkXmWMkmArT 
+# 5 influential outliers identified
 
 #       StudRes        Hat       CookD
 #3  -0.2117072 0.20431572 0.001940475 # R_10vZBkPAWUED8CL
